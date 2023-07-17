@@ -7,7 +7,7 @@ use serenity::CacheAndHttp;
 use crate::origin_bot::{BirthdayInfo, Data};
 
 pub async fn bday_crunching(context: Arc<CacheAndHttp>, data: Data) {
-    let mut interval_timer = tokio::time::interval(Duration::from_secs(60));
+    let mut interval_timer = tokio::time::interval(Duration::from_secs(1800));
     loop {
         interval_timer.tick().await;
 

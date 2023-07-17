@@ -54,7 +54,7 @@ pub async fn set(
         }
     };
 
-    let datetime = match timezone {
+    let mut datetime = match timezone {
         Ok(tz) => {
             let offset: FixedOffset = tz.offset_from_utc_datetime(&Utc::now().naive_utc()).fix();
             let seconds_offset = offset.local_minus_utc();
@@ -84,6 +84,14 @@ pub async fn set(
         }
     };
 
+    if datetime < Utc::now() {
+        //Just in case the bday already happened (and fail back if need be)
+        datetime = match datetime.with_year(datetime.year() + 1) {
+            Some(new_dt) => new_dt,
+            None => datetime,
+        };
+    }
+
     let new_entry = Arc::new(BirthdayInfo {
         associated_user: user.user.id.0,
         datetime,
@@ -94,8 +102,12 @@ pub async fn set(
         .birthday_map
         .insert(user.user.id.0, Arc::clone(&new_entry));
     guild_data_write.schedule.insert(new_entry);
-    ctx.say(format!("Adding birthday with {}", datetime.timestamp()))
-        .await?;
+    ctx.say(format!(
+        "Adding birthday for {} on {}",
+        user.display_name(),
+        datetime
+    ))
+    .await?;
 
     Ok(())
 }
@@ -121,25 +133,36 @@ pub async fn list(ctx: Context<'_>) -> Result<(), Error> {
         }
     };
 
-    let birthday_map = &data.birthday_map;
+    let birthday_map = &data.schedule;
 
     if birthday_map.is_empty() {
         ctx.say("This server has no birthdays").await?;
         return Ok(());
     }
 
-    for (id, info) in birthday_map.iter() {
-        let user_str = match GuildId(guild_id).member(ctx, UserId(*id)).await {
+    let mut bold_char = "**";
+    let mut postfix = " (nearest birthday)";
+
+    for info in birthday_map.iter() {
+        let user_str = match GuildId(guild_id)
+            .member(ctx, UserId(info.associated_user))
+            .await
+        {
             Ok(user) => user.display_name().to_string(),
             Err(_) => "UserFetchError".to_string(),
         };
 
         res += format!(
-            " - {}'s birthday is on {}\n",
+            "- {b}{}'s birthday is on {}{b}{p}\n",
             user_str,
-            info.datetime.format("%B %e")
+            info.datetime.format("%B %e"),
+            b = bold_char,
+            p = postfix
         )
         .as_str();
+
+        bold_char = "";
+        postfix = "";
     }
     ctx.say(res).await?;
     Ok(())
