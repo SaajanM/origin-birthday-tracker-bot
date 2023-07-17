@@ -98,9 +98,14 @@ pub async fn set(
     });
 
     let mut guild_data_write = guild_entry.write().await;
-    guild_data_write
+    let should_fixup = guild_data_write
         .birthday_map
         .insert(user.user.id.0, Arc::clone(&new_entry));
+
+    if let Some(old) = should_fixup {
+        guild_data_write.schedule.remove(&old);
+    }
+
     guild_data_write.schedule.insert(new_entry);
     ctx.say(format!(
         "Adding birthday for {} on {}",
