@@ -4,10 +4,10 @@ use chrono::{Datelike, Utc};
 use poise::serenity_prelude::{ChannelId, Mention, UserId};
 use serenity::CacheAndHttp;
 
-use crate::origin_bot::{BirthdayInfo, Data};
+use crate::structs::{BirthdayInfo, Data};
 
 pub async fn bday_crunching(context: Arc<CacheAndHttp>, data: Data) {
-    let mut interval_timer = tokio::time::interval(Duration::from_secs(1800));
+    let mut interval_timer = tokio::time::interval(Duration::from_secs(900));
     loop {
         interval_timer.tick().await;
 
@@ -17,7 +17,7 @@ pub async fn bday_crunching(context: Arc<CacheAndHttp>, data: Data) {
             let mut continue_checking = true;
             while continue_checking {
                 let channel = {
-                    let guild_reader = guild_data.read().await;
+                    let guild_reader = guild_data.rw_lock.read().await;
                     println!("Guild Reader obtained");
                     let bday_check = guild_reader.schedule.first();
 
@@ -57,7 +57,7 @@ pub async fn bday_crunching(context: Arc<CacheAndHttp>, data: Data) {
                     channel
                 };
                 // Reinsert into both
-                let mut guild_writer = guild_data.write().await;
+                let mut guild_writer = guild_data.rw_lock.write().await;
                 println!("Guild Writer obtained");
 
                 if let Some(removed_info) = guild_writer.schedule.pop_first() {
@@ -82,6 +82,8 @@ pub async fn bday_crunching(context: Arc<CacheAndHttp>, data: Data) {
                                     .birthday_map
                                     .insert(removed_info.associated_user, Arc::clone(&new_info));
                                 guild_writer.schedule.insert(new_info);
+
+                                data.saver.save();
                             }
                             None => {
                                 let _ = channel

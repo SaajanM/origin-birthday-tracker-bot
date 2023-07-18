@@ -1,4 +1,4 @@
-use crate::origin_bot::{Context, Error};
+use crate::structs::{Context, Error};
 use chrono_tz::Tz;
 use std::str::FromStr;
 
@@ -33,8 +33,10 @@ pub async fn timezone(
         }
     };
 
-    let mut guild_entry_mut = guild_entry.write().await;
+    let mut guild_entry_mut = guild_entry.rw_lock.write().await;
     guild_entry_mut.timezone = Some(timezone_to_set);
+
+    ctx.data().saver.save();
 
     ctx.say("Default timezone set successfully!").await?;
 

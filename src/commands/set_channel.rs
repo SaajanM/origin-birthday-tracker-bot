@@ -1,4 +1,4 @@
-use crate::origin_bot::{Context, Error};
+use crate::structs::{Context, Error};
 use poise::serenity_prelude::Channel;
 
 /// Set the channel where messages will appear (MUST BE RUN)
@@ -21,9 +21,11 @@ pub async fn channel(
     let mut guild_data_mut = data.guild_map.write().await;
     let guild_entry = guild_data_mut.entry(guild_id).or_default();
 
-    let mut guild_entry_write = guild_entry.write().await;
+    let mut guild_entry_write = guild_entry.rw_lock.write().await;
 
     guild_entry_write.announcement_channel = Some(channel.id().0);
+
+    ctx.data().saver.save();
 
     ctx.say("Channel successfully set!").await?;
 

@@ -7,7 +7,7 @@ use poise::Command;
 use set_channel::*;
 use timezone::*;
 
-use crate::origin_bot::{Data, Error};
+use crate::structs::{Data, Error};
 
 pub fn get_commands() -> Vec<Command<Data, Error>> {
     vec![bday(), timezone(), channel()]

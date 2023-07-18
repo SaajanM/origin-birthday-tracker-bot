@@ -1,47 +1,41 @@
-use std::{
-    collections::{BTreeSet, HashMap},
-    sync::Arc,
+use std::{path::PathBuf, sync::Arc};
+
+use crate::{
+    commands::get_commands,
+    cron::bday_crunching,
+    persistence::SaveManager,
+    structs::{ApplicationState, Data},
 };
-
-use crate::{commands::get_commands, cron::bday_crunching};
-use chrono::{DateTime, Utc};
-use chrono_tz::Tz;
 use serenity::prelude::GatewayIntents;
-use tokio::sync::RwLock;
+use tokio::fs;
 
-#[derive(Default)]
-pub struct Data {
-    pub state: Arc<ApplicationState>,
-} // User data, which is stored and accessible in all command invocations'
+pub async fn start_bot(
+    token: String,
+    intents: GatewayIntents,
+    save_location: PathBuf,
+) -> Result<(), serenity::Error> {
+    let try_load = fs::read_to_string(save_location.clone()).await;
 
-#[derive(Default)]
-pub struct ApplicationState {
-    pub guild_map: RwLock<HashMap<u64, RwLock<GuildData>>>,
-}
+    let state = if let Ok(loaded_data) = try_load {
+        if let Ok(state) = serde_json::from_str::<ApplicationState>(&loaded_data) {
+            state
+        } else {
+            Default::default()
+        }
+    } else {
+        Default::default()
+    };
 
-#[derive(Default)]
-pub struct GuildData {
-    pub timezone: Option<Tz>,
-    pub announcement_channel: Option<u64>,
-    pub schedule: BTreeSet<Arc<BirthdayInfo>>,
-    // Exists purely for fast deletion
-    pub birthday_map: HashMap<u64, Arc<BirthdayInfo>>,
-}
+    let application_state = Arc::new(state);
 
-#[derive(PartialEq, PartialOrd, Eq, Ord)]
-pub struct BirthdayInfo {
-    pub datetime: DateTime<Utc>,
-    pub associated_user: u64,
-}
-
-pub type Error = Box<dyn std::error::Error + Send + Sync>;
-pub type Context<'a> = poise::Context<'a, Data, Error>;
-
-pub async fn start_bot(token: String, intents: GatewayIntents) -> Result<(), serenity::Error> {
-    let application_state = Arc::new(ApplicationState::default());
+    let saver = Arc::new(SaveManager::new(
+        Arc::clone(&application_state),
+        save_location,
+    ));
 
     let cron_data = Data {
         state: Arc::clone(&application_state),
+        saver: Arc::clone(&saver),
     };
 
     let framework_builder = poise::Framework::builder()
@@ -56,6 +50,7 @@ pub async fn start_bot(token: String, intents: GatewayIntents) -> Result<(), ser
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
                 Ok(Data {
                     state: application_state,
+                    saver,
                 })
             })
         });

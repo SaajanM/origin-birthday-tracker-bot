@@ -1,5 +1,5 @@
-use crate::origin_bot::{BirthdayInfo, Context, Error};
-use chrono::{DateTime, Datelike, FixedOffset, Offset};
+use crate::structs::{BirthdayInfo, Context, Error};
+use chrono::{DateTime, Datelike, Days, FixedOffset, Offset};
 use chrono::{TimeZone, Utc};
 use chrono_tz::Tz;
 use poise::serenity_prelude::{self as serenity, GuildId, UserId};
@@ -42,7 +42,7 @@ pub async fn set(
     let timezone: Result<Tz, _> = match timezone_str {
         Some(timezone_str) => Tz::from_str(&timezone_str),
         None => {
-            let read = guild_entry.read().await;
+            let read = guild_entry.rw_lock.read().await;
             match read.timezone {
                 Some(tz) => Ok(tz),
                 None => {
@@ -54,7 +54,7 @@ pub async fn set(
         }
     };
 
-    let mut datetime = match timezone {
+    let (mut datetime, eod) = match timezone {
         Ok(tz) => {
             let offset: FixedOffset = tz.offset_from_utc_datetime(&Utc::now().naive_utc()).fix();
             let seconds_offset = offset.local_minus_utc();
@@ -69,8 +69,20 @@ pub async fn set(
                 hours,
                 minutes
             );
+
             match DateTime::parse_from_str(formatted.as_str(), "%Y %m/%d %H:%M:%S %z") {
-                Ok(datetime) => DateTime::with_timezone(&datetime, &Utc),
+                Ok(datetime) => {
+                    let eod = datetime.checked_add_days(Days::new(1));
+                    let eod = match eod {
+                        Some(eod) => DateTime::with_timezone(&eod, &Utc),
+                        None => {
+                            ctx.say("Could not calculate EOD for timekeeping measures")
+                                .await?;
+                            return Ok(());
+                        }
+                    };
+                    (DateTime::with_timezone(&datetime, &Utc), eod)
+                }
                 Err(e) => {
                     ctx.say(format!("Invalid Datetime {}: due to {}", formatted, e))
                         .await?;
@@ -83,8 +95,8 @@ pub async fn set(
             return Ok(());
         }
     };
-
-    if datetime < Utc::now() {
+    let now = Utc::now();
+    if datetime < now && now >= eod {
         //Just in case the bday already happened (and fail back if need be)
         datetime = match datetime.with_year(datetime.year() + 1) {
             Some(new_dt) => new_dt,
@@ -97,7 +109,7 @@ pub async fn set(
         datetime,
     });
 
-    let mut guild_data_write = guild_entry.write().await;
+    let mut guild_data_write = guild_entry.rw_lock.write().await;
     let should_fixup = guild_data_write
         .birthday_map
         .insert(user.user.id.0, Arc::clone(&new_entry));
@@ -107,6 +119,9 @@ pub async fn set(
     }
 
     guild_data_write.schedule.insert(new_entry);
+
+    ctx.data().saver.save();
+
     ctx.say(format!(
         "Adding birthday for {} on {}",
         user.display_name(),
@@ -131,7 +146,7 @@ pub async fn list(ctx: Context<'_>) -> Result<(), Error> {
     };
     let reader = ctx.data().state.guild_map.read().await;
     let data = match reader.get(&guild_id) {
-        Some(data) => data.read().await,
+        Some(data) => data.rw_lock.read().await,
         None => {
             ctx.say("This server has no birthdays").await?;
             return Ok(());
@@ -190,7 +205,7 @@ pub async fn del(
     let data = ctx.data().state.guild_map.read().await;
     match data.get(&guild_id) {
         Some(guild_data) => {
-            let mut guild_writer = guild_data.write().await;
+            let mut guild_writer = guild_data.rw_lock.write().await;
 
             let map_del = guild_writer.birthday_map.remove(&user.user.id.0);
 
@@ -200,6 +215,7 @@ pub async fn del(
             };
 
             if removed {
+                ctx.data().saver.save();
                 ctx.say("Birthday removed successfully").await?;
             } else {
                 ctx.say("User is not registered with the birthday service")
