@@ -92,9 +92,7 @@ pub struct GuildData {
     #[serde(with = "opt_tz_serde")]
     pub timezone: Option<Tz>,
     pub announcement_channel: Option<u64>,
-    pub schedule: BTreeSet<Arc<BirthdayInfo>>,
-    // Exists purely for fast deletion
-    pub birthday_map: HashMap<u64, Arc<BirthdayInfo>>,
+    pub birthday_schedule: BirthdaySchedule,
 }
 
 mod opt_tz_serde {
@@ -122,6 +120,116 @@ mod opt_tz_serde {
             )),
             None => Ok(None),
         }
+    }
+}
+
+#[derive(Serialize, Deserialize, Default, Clone)]
+pub struct BirthdaySchedule {
+    schedule: BTreeSet<Arc<BirthdayInfo>>,
+    // Exists purely for fast deletion
+    birthday_map: HashMap<u64, Arc<BirthdayInfo>>,
+}
+
+impl BirthdaySchedule {
+    pub fn get(&self, user_id: u64) -> Option<&Arc<BirthdayInfo>> {
+        self.birthday_map.get(&user_id)
+    }
+
+    /// Returns the old value if present
+    pub fn insert(&mut self, birthday_info: Arc<BirthdayInfo>) -> Option<Arc<BirthdayInfo>> {
+        let res = self
+            .birthday_map
+            .insert(birthday_info.associated_user, Arc::clone(&birthday_info));
+        let _ = self.schedule.insert(birthday_info);
+        res
+    }
+
+    pub fn remove(&mut self, user_id: &u64) -> Option<Arc<BirthdayInfo>> {
+        let res = self.birthday_map.remove(user_id);
+        if let Some(inner) = &res {
+            self.schedule.remove(inner);
+        }
+        res
+    }
+
+    pub fn peek_first(&self) -> Option<&Arc<BirthdayInfo>> {
+        self.schedule.first()
+    }
+
+    pub fn pop_first(&mut self) -> Option<Arc<BirthdayInfo>> {
+        let res = self.schedule.pop_first();
+        if let Some(inner) = &res {
+            let _ = self.birthday_map.remove(&inner.associated_user);
+        }
+        res
+    }
+
+    pub fn peek_occured(&self) -> Vec<&Arc<BirthdayInfo>> {
+        let mut res = vec![];
+        let mut continue_checking = true;
+        let start_time = Utc::now();
+
+        while continue_checking {
+            match self.peek_first() {
+                Some(inner) => {
+                    if inner.datetime < start_time {
+                        res.push(inner);
+                    } else {
+                        continue_checking = false;
+                        continue;
+                    }
+                }
+                None => {
+                    continue_checking = false;
+                    continue;
+                }
+            }
+        }
+        res
+    }
+
+    pub fn pop_occured(&mut self) -> Vec<Arc<BirthdayInfo>> {
+        let mut res = vec![];
+        let mut continue_checking = true;
+        let start_time = Utc::now();
+
+        while continue_checking {
+            match self.peek_first() {
+                Some(inner) => {
+                    if inner.datetime < start_time {
+                        match self.pop_first() {
+                            Some(inner) => {
+                                res.push(inner);
+                            }
+                            None => {
+                                continue_checking = false;
+                                continue;
+                            }
+                        }
+                    } else {
+                        continue_checking = false;
+                        continue;
+                    }
+                }
+                None => {
+                    continue_checking = false;
+                    continue;
+                }
+            }
+        }
+        res
+    }
+
+    pub fn len(&self) -> usize {
+        self.birthday_map.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn ordered_iter(&self) -> std::collections::btree_set::Iter<'_, Arc<BirthdayInfo>> {
+        self.schedule.iter()
     }
 }
 

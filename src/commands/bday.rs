@@ -110,15 +110,9 @@ pub async fn set(
     });
 
     let mut guild_data_write = guild_entry.rw_lock.write().await;
-    let should_fixup = guild_data_write
-        .birthday_map
-        .insert(user.user.id.0, Arc::clone(&new_entry));
-
-    if let Some(old) = should_fixup {
-        guild_data_write.schedule.remove(&old);
-    }
-
-    guild_data_write.schedule.insert(new_entry);
+    let _ = guild_data_write
+        .birthday_schedule
+        .insert(Arc::clone(&new_entry));
 
     ctx.data().saver.save();
 
@@ -153,7 +147,7 @@ pub async fn list(ctx: Context<'_>) -> Result<(), Error> {
         }
     };
 
-    let birthday_map = &data.schedule;
+    let birthday_map = &data.birthday_schedule;
 
     if birthday_map.is_empty() {
         ctx.say("This server has no birthdays").await?;
@@ -163,7 +157,7 @@ pub async fn list(ctx: Context<'_>) -> Result<(), Error> {
     let mut bold_char = "**";
     let mut postfix = " (nearest birthday)";
 
-    for info in birthday_map.iter() {
+    for info in birthday_map.ordered_iter() {
         let user_str = match GuildId(guild_id)
             .member(ctx, UserId(info.associated_user))
             .await
@@ -207,14 +201,9 @@ pub async fn del(
         Some(guild_data) => {
             let mut guild_writer = guild_data.rw_lock.write().await;
 
-            let map_del = guild_writer.birthday_map.remove(&user.user.id.0);
+            let deletion = guild_writer.birthday_schedule.remove(&user.user.id.0);
 
-            let removed = match map_del {
-                Some(value) => guild_writer.schedule.remove(&value),
-                None => false,
-            };
-
-            if removed {
+            if deletion.is_some() {
                 ctx.data().saver.save();
                 ctx.say("Birthday removed successfully").await?;
             } else {

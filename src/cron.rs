@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use chrono::{Datelike, Utc};
+use chronoutil::delta;
 use poise::serenity_prelude::{ChannelId, Mention, UserId};
 use serenity::CacheAndHttp;
 
@@ -13,90 +13,41 @@ pub async fn bday_crunching(context: Arc<CacheAndHttp>, data: Data) {
 
         let global_reader = data.state.guild_map.read().await;
         println!("Global Reader obtained");
-        for (_, guild_data) in global_reader.iter() {
-            let mut continue_checking = true;
-            while continue_checking {
-                let channel = {
-                    let guild_reader = guild_data.rw_lock.read().await;
-                    println!("Guild Reader obtained");
-                    let bday_check = guild_reader.schedule.first();
+        for (guild_id, guild_data) in global_reader.iter() {
+            let happened_bdays = {
+                let mut writer = guild_data.rw_lock.write().await;
+                writer.birthday_schedule.pop_occured()
+            };
+            let announcement_channel = { guild_data.rw_lock.read().await.announcement_channel };
+            for bday in happened_bdays {
+                let user_id = bday.associated_user;
+                let channel_id = announcement_channel.unwrap_or_default();
+                let channel = ChannelId(channel_id);
+                let user = UserId(user_id);
 
-                    let bday_check = match bday_check {
-                        Some(bday_check) => bday_check,
-
-                        // No registered users in guild
-                        None => {
-                            continue_checking = false;
-                            continue;
-                        }
-                    };
-
-                    if bday_check.datetime > Utc::now() {
-                        continue_checking = false;
-                        continue;
-                    }
-                    let user_id = bday_check.associated_user;
-
-                    // Mention user in the requisite guild
-                    let channel_id = match guild_reader.announcement_channel {
-                        Some(id) => id,
-                        None => {
-                            continue_checking = false;
-                            continue;
-                        }
-                    };
-                    let channel = ChannelId(channel_id);
-                    let user = UserId(user_id);
-
-                    let _ = channel
-                        .say(
-                            &context.http,
-                            format!("Happy Birthday {} :tada::tada::tada:", Mention::User(user)),
-                        )
-                        .await;
-                    channel
+                if channel
+                    .say(
+                        &context.http,
+                        format!("Happy Birthday {} :tada::tada::tada:", Mention::User(user)),
+                    )
+                    .await
+                    .is_err()
+                {
+                    println!(
+                        "Could not wish happy birthday to {} on channel {} on server {}",
+                        user_id, channel_id, guild_id
+                    )
                 };
-                // Reinsert into both
-                let mut guild_writer = guild_data.rw_lock.write().await;
-                println!("Guild Writer obtained");
 
-                if let Some(removed_info) = guild_writer.schedule.pop_first() {
-                    if guild_writer
-                        .birthday_map
-                        .remove(&removed_info.associated_user)
-                        .is_some()
-                    {
-                        // Make new info
-                        let new_datetime = removed_info
-                            .datetime
-                            .with_year(removed_info.datetime.year() + 1);
+                let new_insert = Arc::new(BirthdayInfo {
+                    datetime: delta::shift_years(bday.datetime, 1),
+                    associated_user: user_id,
+                });
 
-                        match new_datetime {
-                            Some(new_datetime) => {
-                                let new_info = Arc::new(BirthdayInfo {
-                                    datetime: new_datetime,
-                                    associated_user: removed_info.associated_user,
-                                });
-
-                                guild_writer
-                                    .birthday_map
-                                    .insert(removed_info.associated_user, Arc::clone(&new_info));
-                                guild_writer.schedule.insert(new_info);
-
-                                data.saver.save();
-                            }
-                            None => {
-                                let _ = channel
-                                            .say(
-                                                &context.http,
-                                                "Could not add back the birthday, please manually reinsert its",
-                                            )
-                                            .await;
-                            }
-                        }
-                    }
-                }
+                let mut writer = guild_data.rw_lock.write().await;
+                let _ = writer.birthday_schedule.insert(new_insert);
             }
+            data.saver.save();
         }
     }
 }
