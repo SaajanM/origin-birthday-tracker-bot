@@ -10,12 +10,20 @@ use std::sync::Arc;
 #[poise::command(slash_command)]
 pub async fn set(
     ctx: Context<'_>,
-    #[description = "The User you are adding a birthday for"] user: serenity::Member,
+    #[description = "The User you are adding a birthday for"] user: Option<serenity::Member>,
     #[description = "The day (MM/DD format) on which to give a birthday announcement"]
     day_str: String,
     #[description = "The timezone (Region/Location format) to use (if not provided, server default is used)."]
     timezone_str: Option<String>,
 ) -> Result<(), Error> {
+    let user = user.unwrap_or(match ctx.author_member().await {
+        Some(user) => user.into_owned(),
+        None => {
+            ctx.say("Only works inside servers (sorry lonely loser)")
+                .await?;
+            return Ok(());
+        }
+    });
     let data = &ctx.data().state;
 
     let guild_id = match ctx.guild_id() {

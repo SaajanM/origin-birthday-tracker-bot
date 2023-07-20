@@ -1,3 +1,4 @@
+use chrono::{DateTime, Days, Utc};
 use poise::serenity_prelude::{GuildId, UserId};
 
 use crate::structs::{Context, Error};
@@ -5,7 +6,7 @@ use crate::structs::{Context, Error};
 /// List all birthdays on the server that have happened today (WIP)
 #[poise::command(slash_command)]
 pub async fn today(ctx: Context<'_>) -> Result<(), Error> {
-    let mut res = "Birthdays Today:\n".to_string();
+    let mut res = "People with birthdays today:\n".to_string();
     let guild_id = match ctx.guild_id() {
         Some(id) => id.0,
         None => {
@@ -30,8 +31,7 @@ pub async fn today(ctx: Context<'_>) -> Result<(), Error> {
         return Ok(());
     }
 
-    let mut bold_char = "**";
-    let mut postfix = " (nearest birthday)";
+    let mut count = 0;
 
     for info in birthday_map.ordered_iter() {
         let user_str = match GuildId(guild_id)
@@ -42,18 +42,30 @@ pub async fn today(ctx: Context<'_>) -> Result<(), Error> {
             Err(_) => "UserFetchError".to_string(),
         };
 
-        res += format!(
-            "- {b}{}'s birthday is on {}{b}{p}\n",
-            user_str,
-            info.datetime.format("%B %e"),
-            b = bold_char,
-            p = postfix
-        )
-        .as_str();
+        let eod = info.datetime.checked_add_days(Days::new(1));
+        let eod = match eod {
+            Some(eod) => DateTime::with_timezone(&eod, &Utc),
+            None => {
+                ctx.say("Could not calculate EOD for timekeeping measures")
+                    .await?;
+                return Ok(());
+            }
+        };
 
-        bold_char = "";
-        postfix = "";
+        if !(info.datetime < Utc::now() && Utc::now() < eod) {
+            continue;
+        }
+
+        res += format!("- {}\n", user_str,).as_str();
+
+        count += 1;
     }
-    ctx.say(res).await?;
+    if count > 0 {
+        ctx.say(res).await?;
+    } else {
+        ctx.say("None of the registered birthdays are today.")
+            .await?;
+    }
+
     Ok(())
 }
