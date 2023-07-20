@@ -6,6 +6,7 @@ use crate::{
     persistence::SaveManager,
     structs::{ApplicationState, Data},
 };
+use poise::serenity_prelude::Activity;
 use serenity::prelude::GatewayIntents;
 use tokio::fs;
 
@@ -17,10 +18,12 @@ pub async fn start_bot(
     let try_load = fs::read_to_string(save_location.clone()).await;
 
     let state = if let Ok(loaded_data) = try_load {
-        if let Ok(state) = serde_json::from_str::<ApplicationState>(&loaded_data) {
-            state
-        } else {
-            Default::default()
+        match serde_json::from_str::<ApplicationState>(&loaded_data) {
+            Ok(state) => state,
+            Err(e) => {
+                println!("{}", e);
+                Default::default()
+            }
         }
     } else {
         Default::default()
@@ -47,6 +50,11 @@ pub async fn start_bot(
         .intents(intents)
         .setup(|ctx, _ready, framework| {
             Box::pin(async move {
+                ctx.set_presence(
+                    Some(Activity::watching("for celebrations")),
+                    poise::serenity_prelude::OnlineStatus::Online,
+                )
+                .await;
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
                 Ok(Data {
                     state: application_state,

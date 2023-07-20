@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use chrono_tz::Tz;
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Deserializer, Serialize};
 use std::{
     collections::{BTreeSet, HashMap},
     sync::Arc,
@@ -14,7 +14,7 @@ pub struct Data {
     pub saver: Arc<SaveManager>,
 } // User data, which is stored and accessible in all command invocations'
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Debug)]
 pub struct ApplicationState {
     #[serde(with = "rw_lock_app_state")]
     pub guild_map: RwLock<HashMap<u64, RWGuildData>>,
@@ -51,7 +51,7 @@ mod rw_lock_app_state {
     }
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Debug)]
 pub struct RWGuildData {
     #[serde(with = "rw_lock_guild_data")]
     pub rw_lock: RwLock<GuildData>,
@@ -86,12 +86,13 @@ mod rw_lock_guild_data {
     }
 }
 
-#[derive(Default, Clone, Serialize, Deserialize)]
+#[derive(Default, Clone, Serialize, Deserialize, Debug)]
 pub struct GuildData {
     #[serde(default)]
     #[serde(with = "opt_tz_serde")]
     pub timezone: Option<Tz>,
     pub announcement_channel: Option<u64>,
+    #[serde(flatten)]
     pub birthday_schedule: BirthdaySchedule,
 }
 
@@ -123,11 +124,25 @@ mod opt_tz_serde {
     }
 }
 
-#[derive(Serialize, Deserialize, Default, Clone)]
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct BirthdaySchedule {
     schedule: BTreeSet<Arc<BirthdayInfo>>,
     // Exists purely for fast deletion
+    #[serde(deserialize_with = "str_to_u64_map_deser")]
     birthday_map: HashMap<u64, Arc<BirthdayInfo>>,
+}
+
+fn str_to_u64_map_deser<'de, D>(de: D) -> Result<HashMap<u64, Arc<BirthdayInfo>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let string_map = <HashMap<String, Arc<BirthdayInfo>>>::deserialize(de)?;
+    let mut map = HashMap::with_capacity(string_map.len());
+    for (s, v) in string_map {
+        let k = s.parse::<u64>().map_err(de::Error::custom)?;
+        map.insert(k, v);
+    }
+    Ok(map)
 }
 
 impl BirthdaySchedule {
@@ -233,7 +248,7 @@ impl BirthdaySchedule {
     }
 }
 
-#[derive(PartialEq, PartialOrd, Eq, Ord, Serialize, Deserialize)]
+#[derive(PartialEq, PartialOrd, Eq, Ord, Serialize, Deserialize, Debug)]
 pub struct BirthdayInfo {
     pub datetime: DateTime<Utc>,
     pub associated_user: u64,
