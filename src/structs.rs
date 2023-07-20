@@ -155,6 +155,9 @@ impl BirthdaySchedule {
         let res = self
             .birthday_map
             .insert(birthday_info.associated_user, Arc::clone(&birthday_info));
+        if let Some(inner) = &res {
+            let _ = self.schedule.remove(inner);
+        }
         let _ = self.schedule.insert(birthday_info);
         res
     }
