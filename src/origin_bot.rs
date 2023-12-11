@@ -1,46 +1,30 @@
-use std::{path::PathBuf, sync::Arc};
+use std::sync::{atomic::AtomicBool, Arc};
 
 use crate::{
-    commands::get_commands,
-    cron::bday_crunching,
-    persistence::SaveManager,
-    structs::{ApplicationState, Data},
+    commands::get_commands, cron::bday_crunching, persistence::SaveManager, structs::Data,
 };
 use poise::serenity_prelude::Activity;
 use serenity::prelude::GatewayIntents;
-use tokio::fs;
 
 pub async fn start_bot(
     token: String,
     intents: GatewayIntents,
-    save_location: PathBuf,
-) -> Result<(), serenity::Error> {
-    let try_load = fs::read_to_string(save_location.clone()).await;
+    save_location: String,
+) -> Result<(), anyhow::Error> {
+    // Generate 3 tasks
+    // Task 1: deal with real time discord interaction (commands, etc)
+    // Task 2: deal with accessing the database
+    // Task 3: deal with async discord integration
+    // Task 2 must happen first to return a handle the others can use to make queries
+    // Task 3 must launch next to provide a handle to trigger a queuing of a cron job
+    // Task 1 comes last, though the framework must be instantiated here before any of these tasks
+    let global_exit_flag = Arc::new(AtomicBool::new(false));
 
-    let state = if let Ok(loaded_data) = try_load {
-        match serde_json::from_str::<ApplicationState>(&loaded_data) {
-            Ok(state) => state,
-            Err(e) => {
-                println!("{}", e);
-                Default::default()
-            }
-        }
-    } else {
-        Default::default()
-    };
+    let save_manager_exit_flag = Arc::clone(&global_exit_flag);
+    let save_manager = SaveManager::try_new(save_location, save_manager_exit_flag)?;
 
-    let application_state = Arc::new(state);
-
-    let saver = Arc::new(SaveManager::new(
-        Arc::clone(&application_state),
-        save_location,
-    ));
-
-    let cron_data = Data {
-        state: Arc::clone(&application_state),
-        saver: Arc::clone(&saver),
-    };
-
+    let framework_exit_flag = Arc::clone(&global_exit_flag);
+    let framework_query_handler = save_manager.db_query_channel.clone();
     let framework_builder = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands: get_commands(),
@@ -56,9 +40,10 @@ pub async fn start_bot(
                 )
                 .await;
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
+
                 Ok(Data {
-                    state: application_state,
-                    saver,
+                    query_handler: framework_query_handler,
+                    exit_flag: framework_exit_flag,
                 })
             })
         });
@@ -66,8 +51,17 @@ pub async fn start_bot(
     let framework = framework_builder.build().await?;
 
     let http_cache = Arc::clone(&framework.client().cache_and_http);
+    let cron_exit_flag = Arc::clone(&global_exit_flag);
+    let cron_query_handler = save_manager.db_query_channel.clone();
+    let cron_data = Data {
+        exit_flag: cron_exit_flag,
+        query_handler: cron_query_handler,
+    };
 
     tokio::spawn(bday_crunching(http_cache, cron_data));
+    println!("Starting Origin Bot...");
 
-    framework.start().await
+    framework.start().await?;
+
+    Ok(())
 }

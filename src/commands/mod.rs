@@ -1,14 +1,12 @@
-mod bday;
-mod set_channel;
-mod timezone;
+mod ping;
+mod setup;
 
-use bday::*;
+use ping::*;
 use poise::Command;
-use set_channel::*;
-use timezone::*;
+use setup::*;
 
 use crate::structs::{Data, Error};
 
 pub fn get_commands() -> Vec<Command<Data, Error>> {
-    vec![bday(), timezone(), channel()]
+    vec![setup(), ping()]
 }

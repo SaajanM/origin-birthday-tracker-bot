@@ -1,6 +1,6 @@
 [package]
 name = "origin-bot"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -9,12 +9,24 @@ edition = "2021"
 anyhow = "1.0"
 chrono = "0.4"
 chronoutil = "0.2"
-chrono-tz = "0.8"
-clap = {version="4.3", features=["derive"]}
+diesel = { version = "2.1", features = [
+    "sqlite",
+    "returning_clauses_for_sqlite_3_35",
+] }
+diesel_migrations = "2.1"
+chrono-tz = { version = "0.8", features = ["case-insensitive"] }
+clap = { version = "4.3", features = ["derive"] }
+crossbeam = "0.8.2"
 dotenvy = "0.15"
 envy = "0.4"
-poise = "0.5"
-serde = {version = "1.0", features = ["derive", "rc"]}
+libsqlite3-sys = { version = "0.27.0", features = ["bundled"] }
+poise = "0.5.7"
+serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
-serenity = {version="0.11",default-features = false, features = ["client", "gateway", "rustls_backend", "model"]}
+serenity = { version = "0.11.7", default-features = false, features = [
+    "client",
+    "gateway",
+    "rustls_backend",
+    "model",
+] }
 tokio = { version = "1", features = ["full"] }
