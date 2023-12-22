@@ -44,6 +44,7 @@ pub async fn start_bot(
                 Ok(Data {
                     query_handler: framework_query_handler,
                     exit_flag: framework_exit_flag,
+                    shard_manager: Arc::clone(framework.shard_manager()),
                 })
             })
         });
@@ -56,12 +57,12 @@ pub async fn start_bot(
     let cron_data = Data {
         exit_flag: cron_exit_flag,
         query_handler: cron_query_handler,
+        shard_manager: Arc::clone(framework.shard_manager()),
     };
 
     tokio::spawn(bday_crunching(http_cache, cron_data));
     println!("Starting Origin Bot...");
 
     framework.start().await?;
-
     Ok(())
 }

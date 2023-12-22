@@ -1,4 +1,5 @@
 use crate::{
+    helpers::{autocomplete_tz, is_guild_setup},
     models::NewGuild,
     persistence::{CommandWithCallback, DbCommand},
     structs::{Context, Error},
@@ -16,11 +17,13 @@ pub async fn setup(
     ctx: Context<'_>,
     #[description = "The channel that OriginBot will talk in. Leave blank if in DM"]
     announcement_channel: Option<Channel>,
-    #[description = "The timezone to set the server default to"] timezone_str_opt: Option<String>,
+    #[description = "The timezone to set the server default to"]
+    #[autocomplete = "autocomplete_tz"]
+    timezone: Option<String>,
     #[description = "Allow anyone to edit and set birthdays on this server (default: false)"]
-    allows_anyone_edit_opt: Option<bool>,
+    allows_anyone_edit: Option<bool>,
     #[description = "Ping the @everyone role when the server birthday comes around (default: false)"]
-    do_server_bday_opt: Option<bool>,
+    do_server_bday: Option<bool>,
 ) -> Result<(), Error> {
     let query_handler = &ctx.data().query_handler;
 
@@ -29,33 +32,18 @@ pub async fn setup(
         None => ctx.channel_id().0,
     };
 
-    let (callback, callback_recv) = oneshot::channel();
-
-    let count_send_result =
-        query_handler.send(DbCommand::CheckContainsGuild(CommandWithCallback {
-            data: guild_id,
-            callback,
-        }));
-
-    if count_send_result.is_err() {
-        ctx.say("Setup failed: Could not connect to data store")
-            .await?;
-        return Ok(());
-    }
-
-    match callback_recv.await {
-        Ok(Ok(true)) => {
-            ctx.say("Setup failed: Already set up. If you want to edit this server/chat's settings please run the corresponding specific command").await?;
+    match is_guild_setup(query_handler, guild_id).await {
+        Err(err_str) => {
+            let _ = ctx.say(err_str).await;
             return Ok(());
         }
-        Err(e) => {
-            println!("{}", e);
-            ctx.say("Setup failed: Could not connect to data store")
-                .await?;
+        Ok(true) => {
+            let _ = ctx.say("Server is already set up").await;
             return Ok(());
         }
         _ => {}
     };
+
     let announcement_channel_id = match announcement_channel {
         Some(channel) => channel.id().0,
         None => {
@@ -69,10 +57,10 @@ pub async fn setup(
             }
         }
     };
-    let allows_anyone_edit = allows_anyone_edit_opt.unwrap_or(false);
-    let do_server_birthday = do_server_bday_opt.unwrap_or(false);
+    let allows_anyone_edit = allows_anyone_edit.unwrap_or(false);
+    let do_server_birthday = do_server_bday.unwrap_or(false);
 
-    if let Some(tz_str) = &timezone_str_opt {
+    if let Some(tz_str) = &timezone {
         let is_tz_result = Tz::from_str_insensitive(tz_str.as_str());
         if is_tz_result.is_err() {
             ctx.say("Setup failed: Invalid timezone provided").await?;
@@ -85,7 +73,7 @@ pub async fn setup(
         announcement_channel: announcement_channel_id as i64,
         allows_anyone_edit,
         do_server_birthday,
-        timezone_name: timezone_str_opt,
+        timezone_name: timezone,
     };
 
     let (callback, callback_recv) = oneshot::channel();

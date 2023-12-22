@@ -3,13 +3,14 @@ use origin_bot::start_bot;
 use serde::Deserialize;
 use serenity::prelude::*;
 
-pub mod commands;
-pub mod cron;
-pub mod models;
+mod commands;
+mod cron;
+mod helpers;
+mod models;
 mod origin_bot;
-pub mod persistence;
-pub mod schema;
-pub mod structs;
+mod persistence;
+mod schema;
+mod structs;
 
 #[derive(Deserialize)]
 struct DiscordBotEnv {
@@ -32,7 +33,7 @@ async fn main() -> anyhow::Result<()> {
 
     let token = env_config.discord_token;
 
-    let intents = GatewayIntents::default();
+    let intents = GatewayIntents::empty();
 
     match start_bot(token, intents, env_config.save_location).await {
         Ok(_) => Ok(()),

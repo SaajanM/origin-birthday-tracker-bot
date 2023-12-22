@@ -1,12 +1,17 @@
+mod bday;
 mod ping;
 mod setup;
+mod shutdown;
 
-use ping::*;
 use poise::Command;
+
+use bday::*;
+use ping::*;
 use setup::*;
+use shutdown::*;
 
 use crate::structs::{Data, Error};
 
 pub fn get_commands() -> Vec<Command<Data, Error>> {
-    vec![setup(), ping()]
+    vec![setup(), ping(), shutdown(), bday()]
 }

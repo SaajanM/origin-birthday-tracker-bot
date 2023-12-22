@@ -28,8 +28,10 @@ pub struct NewGuild {
 pub struct Birthday {
     pub id: i32,
     pub birthday: i64,
-    pub who_to_ping: Option<i64>,
-    pub entry_name: Option<String>,
+    pub next_birthday: i64,
+    pub uses_time: bool,
+    pub who_to_ping: i64,
+    pub entry_name: String,
     pub guild_id: i64,
 }
 
@@ -37,7 +39,9 @@ pub struct Birthday {
 #[diesel(table_name = crate::schema::birthdays)]
 pub struct NewBirthday {
     pub birthday: i64,
-    pub who_to_ping: Option<i64>,
-    pub entry_name: Option<String>,
+    pub next_birthday: i64,
+    pub uses_time: bool,
+    pub who_to_ping: i64,
+    pub entry_name: String,
     pub guild_id: i64,
 }

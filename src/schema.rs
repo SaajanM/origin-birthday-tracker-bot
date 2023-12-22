@@ -4,8 +4,10 @@ diesel::table! {
     birthdays (id) {
         id -> Integer,
         birthday -> BigInt,
-        who_to_ping -> Nullable<BigInt>,
-        entry_name -> Nullable<Text>,
+        next_birthday -> BigInt,
+        uses_time -> Bool,
+        who_to_ping -> BigInt,
+        entry_name -> Text,
         guild_id -> BigInt,
     }
 }
@@ -21,4 +23,7 @@ diesel::table! {
     }
 }
 
-diesel::allow_tables_to_appear_in_same_query!(birthdays, guilds,);
+diesel::allow_tables_to_appear_in_same_query!(
+    birthdays,
+    guilds,
+);

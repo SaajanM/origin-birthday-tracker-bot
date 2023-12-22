@@ -9,14 +9,14 @@ edition = "2021"
 anyhow = "1.0"
 chrono = "0.4"
 chronoutil = "0.2"
+chrono-tz = { version = "0.8", features = ["case-insensitive"] }
+clap = { version = "4.3", features = ["derive"] }
+crossbeam = "0.8.2"
 diesel = { version = "2.1", features = [
     "sqlite",
     "returning_clauses_for_sqlite_3_35",
 ] }
 diesel_migrations = "2.1"
-chrono-tz = { version = "0.8", features = ["case-insensitive"] }
-clap = { version = "4.3", features = ["derive"] }
-crossbeam = "0.8.2"
 dotenvy = "0.15"
 envy = "0.4"
 libsqlite3-sys = { version = "0.27.0", features = ["bundled"] }
@@ -30,3 +30,4 @@ serenity = { version = "0.11.7", default-features = false, features = [
     "model",
 ] }
 tokio = { version = "1", features = ["full"] }
+tzdb = "0.5.7"
