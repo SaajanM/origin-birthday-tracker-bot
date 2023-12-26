@@ -47,7 +47,7 @@ pub async fn add(
     let birthdate = match NaiveDate::parse_from_str(&birth_date, "%m/%d/%Y") {
         Ok(v) => v,
         Err(_) => {
-            ctx.say("Please use MM/DD/YYYY syntax for the date").await?;
+            ctx.say("Please use MM/DD syntax for the date").await?;
             return Ok(());
         }
     };

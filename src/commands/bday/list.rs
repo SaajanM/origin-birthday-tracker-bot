@@ -11,6 +11,8 @@ pub async fn list(
     ctx: Context<'_>,
     #[description = "Maximum number of birthdays to list (default: 20)"] limit: Option<i32>,
 ) -> Result<(), Error> {
+    ctx.defer().await?;
+
     let query_handler = &ctx.data().query_handler;
 
     let limit = limit.unwrap_or(20);

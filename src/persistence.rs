@@ -118,15 +118,23 @@ fn fetch_n_birthdays(
         .filter(schema::birthdays::guild_id.eq(gid))
         .load::<Birthday>(db);
 
-    let count_result: QueryResult<i64> = schema::guilds::table
-        .filter(schema::guilds::guild_id.eq(gid))
-        .select(count_distinct(schema::guilds::id))
+    let count_result: QueryResult<i64> = schema::birthdays::table
+        .filter(schema::birthdays::guild_id.eq(gid))
+        .select(count_distinct(schema::birthdays::id))
         .first::<i64>(db);
+
+    let _ = count_result.as_ref().map(|x| {
+        println!("{}", x);
+        x
+    });
 
     let count_result = count_result.map(|val| (if val <= limit { 0 } else { val - limit }) as u64);
 
     let result = match (fetch_result, count_result) {
-        (Ok(v), Ok(i)) => Ok((v, i)),
+        (Ok(v), Ok(i)) => {
+            println!("{}", i);
+            Ok((v, i))
+        }
         (Ok(_), Err(e)) => Err(anyhow::Error::from(e)),
         (Err(e), Ok(_)) => Err(anyhow::Error::from(e)),
         (Err(e1), Err(e2)) => Err(anyhow::anyhow!("{};{}", e1, e2)),
