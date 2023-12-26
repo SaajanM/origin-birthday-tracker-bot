@@ -27,7 +27,7 @@ pub struct NewGuild {
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct Birthday {
     pub id: i32,
-    pub birthday: i64,
+    // pub birthday: i64,
     pub next_birthday: i64,
     pub uses_time: bool,
     pub who_to_ping: i64,
@@ -38,7 +38,7 @@ pub struct Birthday {
 #[derive(Insertable, PartialEq, Debug)]
 #[diesel(table_name = crate::schema::birthdays)]
 pub struct NewBirthday {
-    pub birthday: i64,
+    // pub birthday: i64,
     pub next_birthday: i64,
     pub uses_time: bool,
     pub who_to_ping: i64,

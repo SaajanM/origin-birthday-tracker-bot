@@ -14,7 +14,7 @@ use tokio::sync::oneshot;
 pub async fn add(
     ctx: Context<'_>,
     #[description = "Who to celebrate for"] entry_name: String,
-    #[description = "The date of this birthday (as MM/DD/YYYY)"] birth_date: String,
+    #[description = "The date of this birthday (as MM/DD)"] birth_date: String,
     #[description = "Optional time of birthday (as 24hr hh:mm:ss, seconds optional) (default: start of day at midnight)"]
     birth_time: Option<String>,
     #[description = "The timezone for this birthday (default: the server's default timezone)"]
@@ -41,6 +41,8 @@ pub async fn add(
         }
         _ => {}
     };
+
+    let birth_date = birth_date + "/2000";
 
     let birthdate = match NaiveDate::parse_from_str(&birth_date, "%m/%d/%Y") {
         Ok(v) => v,
@@ -135,10 +137,9 @@ pub async fn add(
 
     let next_birthday = calc_next_birthday(birthday);
 
-    let birthday = birthday.timestamp();
+    // let birthday = birthday.timestamp();
 
     let command_data = NewBirthday {
-        birthday,
         next_birthday,
         uses_time,
         who_to_ping,

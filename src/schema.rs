@@ -3,7 +3,6 @@
 diesel::table! {
     birthdays (id) {
         id -> Integer,
-        birthday -> BigInt,
         next_birthday -> BigInt,
         uses_time -> Bool,
         who_to_ping -> BigInt,

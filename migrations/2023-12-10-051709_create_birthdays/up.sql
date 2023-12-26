@@ -1,6 +1,5 @@
 CREATE TABLE birthdays (
     id INTEGER NOT NULL PRIMARY KEY,
-    birthday BIGINT NOT NULL,
     next_birthday BIGINT NOT NULL,
     uses_time BOOLEAN NOT NULL,
     who_to_ping BIGINT NOT NULL,
